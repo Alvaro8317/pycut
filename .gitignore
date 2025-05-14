@@ -1,0 +1,8 @@
+.cursor/
+.idea/
+.venv/
+__pycache__/
+*.wav
+*.mkv
+*.mp4
+*.pyc
