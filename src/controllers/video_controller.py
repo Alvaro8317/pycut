@@ -13,21 +13,22 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 
+def _get_filename(complete_filename: str) -> str:
+    base = os.path.basename(complete_filename)
+    return os.path.splitext(base)[0]
+
 def _generate_audio_file(video_clip: editor.VideoFileClip, path_output: str, filename: str):
     audio = video_clip.audio
-
-    base_output_dir = os.path.dirname(path_output)
-    output_dir = os.path.join(base_output_dir, 'outputs')
-
-    os.makedirs(output_dir, exist_ok=True)
-    filename_output = os.path.join(output_dir, f"{filename}-raw-temp-audio.wav")
-
+    filename_output = f"{path_output}/{filename}-raw-temp-audio.wav"
+    logger.info(f"Writing audio file to {filename_output}")
     audio.write_audiofile(filename_output)
     return filename_output
 
 
 def _process_video(video_clip: editor.VideoFileClip, path_output: str):
-    audio_file = _generate_audio_file(video_clip, path_output, video_clip.filename)
+    os.makedirs(path_output, exist_ok=True)
+    filename = _get_filename(video_clip.filename)
+    audio_file = _generate_audio_file(video_clip, path_output, filename)
     audio_instance = audio_clip.AudioClip(audio_file)
     audio = audio_service.AudioService(audio_instance)
     audio.adjust_audio(19.8)
@@ -35,8 +36,8 @@ def _process_video(video_clip: editor.VideoFileClip, path_output: str):
     silence_intervals = audio.get_silence_intervals(silence_thresh=-50, min_silence_len=1000)
     non_silent_audio = audio.remove_silence(silence_intervals)
 
-    output_file = os.path.join(path_output, f"{video_clip.filename}-raw-temp-temp_audio_no_silence.wav")
-
+    output_file = f"{path_output}/{filename}-raw-temp-temp_audio_no_silence.wav"
+    logger.info(f"Writing audio file without silence to {output_file}")
     non_silent_audio.export(output_file, format="wav")
     new_audio_clip = editor.AudioFileClip(output_file)
 
@@ -44,9 +45,9 @@ def _process_video(video_clip: editor.VideoFileClip, path_output: str):
     video_with_no_silence: editor.VideoClip = video.remove_silence_from_video(silence_intervals)
     video_with_new_audio = video_with_no_silence.set_audio(new_audio_clip)
 
-    output_video = os.path.join(path_output, f"{video_clip.filename}-output_video_no_silence.mkv")
+    output_video = f"{path_output}/{filename}-final.mkv"
+    logger.info(f"Writing video file without silence to {output_video}")
     video_with_new_audio.write_videofile(output_video, codec="libx264", audio_codec="aac")
-    print(f"Video con audio modificado guardado en: {output_video}")
 
 
 class VideoController:
@@ -58,5 +59,6 @@ class VideoController:
         logger.info("Inicio de procesamiento de videos")
         output_dir = os.path.join(self.adapter.get_folder(), "outputs")
         for video_file in self.video_files:
-            logger.info(f"Procesando video {video_file}")
-            _process_video(editor.VideoFileClip(video_file), output_dir)
+            logger.info(f"Processing video {video_file}")
+            logger.info(output_dir)
+            _process_video(video_clip=editor.VideoFileClip(video_file), path_output=output_dir)
